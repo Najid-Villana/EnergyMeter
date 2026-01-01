@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Energy Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* DASHBOARD STYLING */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1e1e2e; color: #fff; text-align: center; margin: 0; padding: 20px; }
+        h1 { margin-bottom: 20px; letter-spacing: 2px; }
+        
+        .dashboard { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; max-width: 1000px; margin: auto; }
+        .card {
+            background: #2b2b40; width: 200px; padding: 20px; border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-top: 5px solid #00d4ff;
+        }
+        .value { font-size: 35px; font-weight: bold; margin: 10px 0; }
+        .unit { font-size: 16px; color: #a6a6c3; }
+        
+        /* Colors */
+        .voltage .value { color: #ffeb3b; }
+        .current .value { color: #ff5722; }
+        .power .value { color: #00d4ff; }
+        .energy .value { color: #4caf50; }
+
+        /* Graph Container */
+        .graph-container {
+            background: #2b2b40; max-width: 900px; margin: 40px auto; padding: 20px;
+            border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>⚡ LIVE ENERGY MONITOR</h1>
+
+    <div class="dashboard">
+        <div class="card voltage">
+            <h2>Voltage</h2>
+            <div class="value" id="disp-voltage">--</div>
+            <div class="unit">Volts (V)</div>
+        </div>
+        <div class="card current">
+            <h2>Current</h2>
+            <div class="value" id="disp-current">--</div>
+            <div class="unit">Amps (A)</div>
+        </div>
+        <div class="card power">
+            <h2>Power</h2>
+            <div class="value" id="disp-power">--</div>
+            <div class="unit">Watts (W)</div>
+        </div>
+        <div class="card energy">
+            <h2>Energy</h2>
+            <div class="value" id="disp-energy">--</div>
+            <div class="unit">kWh</div>
+        </div>
+    </div>
+
+    <div class="graph-container">
+        <h2 style="color:#aaa; font-size:18px;">Live Power History (Last 20 Readings)</h2>
+        <canvas id="powerChart"></canvas>
+    </div>
+
+    <div style="margin-top:20px; color:#888;">Status: <span id="status-text">Connecting...</span></div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        // ==============================================================
+        // YOUR CONFIGURATION (Auto-Filled)
+        // ==============================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCdIxNtGsHzzbPq6EODa7MM7x3RPybW5do",
+            authDomain: "energy-meter-a205e.firebaseapp.com",
+            databaseURL: "https://energy-meter-a205e-default-rtdb.firebaseio.com",
+            projectId: "energy-meter-a205e",
+            storageBucket: "energy-meter-a205e.firebasestorage.app",
+            messagingSenderId: "467025530156",
+            appId: "1:467025530156:web:7307b59a206f6d11987089"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // 1. LIVE DATA LISTENER
+        const uiVoltage = document.getElementById('disp-voltage');
+        const uiCurrent = document.getElementById('disp-current');
+        const uiPower = document.getElementById('disp-power');
+        const uiEnergy = document.getElementById('disp-energy');
+        const uiStatus = document.getElementById('status-text');
+
+        db.ref('Live').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if(data) {
+                uiStatus.innerText = "Active"; uiStatus.style.color = "#4caf50";
+                uiVoltage.innerText = data.voltage.toFixed(1);
+                uiCurrent.innerText = data.current.toFixed(2);
+                uiPower.innerText = data.power.toFixed(1);
+                uiEnergy.innerText = data.energy.toFixed(3);
+            }
+        });
+
+        // 2. GRAPH DATA LISTENER
+        const ctx = document.getElementById('powerChart').getContext('2d');
+        const powerChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], 
+                datasets: [{
+                    label: 'Power (W)',
+                    data: [],
+                    borderColor: '#00d4ff',
+                    backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                scales: {
+                    x: { ticks: { color: '#aaa' } },
+                    y: { ticks: { color: '#aaa' }, beginAtZero: true }
+                }
+            }
+        });
+
+        db.ref('History').limitToLast(20).on('child_added', (snapshot) => {
+            const data = snapshot.val();
+            const date = new Date(data.timestamp);
+            const timeString = date.toLocaleTimeString();
+
+            powerChart.data.labels.push(timeString);
+            powerChart.data.datasets[0].data.push(data.power);
+
+            if(powerChart.data.labels.length > 20) {
+                powerChart.data.labels.shift();
+                powerChart.data.datasets[0].data.shift();
+            }
+            powerChart.update();
+        });
+    </script>
+</body>
+</html>
